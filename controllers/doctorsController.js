@@ -46,6 +46,9 @@ exports.create = async (req, res) => {
 
     res.status(201).json({ id: result.insertId, clinic_id, user_id, department_id, assistant_user_id: assistant_user_id || null });
   } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ message: 'This user is already registered as a doctor' });
+    }
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
   }
