@@ -9,7 +9,7 @@ router.post('/',
     authenticateToken,
     authorizeRoles('super_admin', 'manager'),
     [
-        body('clinic_id').optional().isInt().withMessage('A valid clinic_id is required'),
+        body('clinic_id').optional({ checkFalsy: true }).isInt().withMessage('A valid clinic_id is required'),
         body('name').trim().notEmpty().withMessage('Name is required'),
         body('role').trim().notEmpty().withMessage('Select role for user'),
         body('username').notEmpty().withMessage('Uername is required'),
