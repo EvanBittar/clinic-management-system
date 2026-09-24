@@ -31,6 +31,13 @@ exports.create = async (req, res) => {
     if (check[0].is_active !== 1) {
       return res.status(400).json({ message: 'This user is not active' });
     }
+    const [deptCheck] = await pool.query('SELECT clinic_id FROM departments WHERE id = ?', [department_id]);
+    if (deptCheck.length === 0) {
+      return res.status(404).json({ message: 'Department not found' });
+    }
+    if (deptCheck[0].clinic_id !== clinic_id) {
+      return res.status(403).json({ message: 'This department does not belong to your clinic' });
+    }
 
     const [result] = await pool.query(
       'INSERT INTO doctors (clinic_id, user_id, department_id, assistant_user_id) VALUES (?, ?, ?, ?)',
