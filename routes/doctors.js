@@ -16,4 +16,6 @@ router.post('/',
     doctorsController.create
 );
 
+router.get('/',authenticateToken,doctorsController.getAll);
+
 module.exports = router;

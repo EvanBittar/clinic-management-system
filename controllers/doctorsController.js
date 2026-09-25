@@ -53,3 +53,21 @@ exports.create = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.getAll = async (req, res) => {
+  try {
+    const [result] = await pool.query(
+      'SELECT doctors.id, users.name AS doctor_name, departments.name AS department_name, doctors.assistant_user_id ' +
+      'FROM doctors ' +
+      'JOIN users ON users.id = doctors.user_id ' +
+      'JOIN departments ON doctors.department_id = departments.id ' +
+      'WHERE doctors.clinic_id = ?;',
+      [req.user.clinicId]
+    );
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+
+  }
+};
