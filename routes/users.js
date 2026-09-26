@@ -7,12 +7,12 @@ const { body } = require('express-validator');
 
 router.post('/',
     authenticateToken,
-    authorizeRoles('super_admin', 'manager'),
+    authorizeRoles('super_admin', 'manager', 'deputy_manager'),
     [
         body('clinic_id').optional({ checkFalsy: true }).isInt().withMessage('A valid clinic_id is required'),
         body('name').trim().notEmpty().withMessage('Name is required'),
         body('role').trim().notEmpty().withMessage('Select role for user'),
-        body('username').notEmpty().withMessage('Uername is required'),
+        body('username').notEmpty().withMessage('Username is required'),
         body('password').notEmpty().withMessage('Password is required')
     ],
     usersController.create
