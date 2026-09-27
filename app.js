@@ -13,6 +13,7 @@ const departmentsRoutes = require('./routes/departments');
 const doctorsRoutes = require('./routes/doctors');
 const appointmentTypesRoutes = require('./routes/appointmentTypes');
 const patientsRoutes = require('./routes/patients');
+const appointmentsRoutes = require('./routes/appointments');
 
 app.use('/clinics', clinicsRoutes);
 // app.use('/clinic-types', clinicTypesRoutes);
@@ -21,7 +22,7 @@ app.use('/departments', departmentsRoutes);
 app.use('/doctors', doctorsRoutes);
 app.use('/appointment-types', appointmentTypesRoutes);
 app.use('/patients', patientsRoutes);
-// app.use('/appointments', appointmentsRoutes);
+app.use('/appointments', appointmentsRoutes);
 // app.use('/notifications', notificationsRoutes);
 app.use('/', authRoutes);
 
