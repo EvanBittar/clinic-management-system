@@ -57,3 +57,44 @@ exports.create = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+exports.getAll = async (req, res) => {
+  try {
+    const clinic_id = req.user.clinicId;
+    const { date, doctor_id, status } = req.query;
+
+    let query = `
+      SELECT appointments.id, appointments.scheduled_at, appointments.status, appointments.notes,
+             patients.name AS patient_name,
+             users.name AS doctor_name,
+             appointment_types.name AS appointment_type
+      FROM appointments
+      JOIN patients ON appointments.patient_id = patients.id
+      JOIN doctors ON appointments.doctor_id = doctors.id
+      JOIN users ON doctors.user_id = users.id
+      JOIN appointment_types ON appointments.appointment_type_id = appointment_types.id
+      WHERE appointments.clinic_id = ?
+    `;
+    const params = [clinic_id];
+
+    if (date) {
+      query += ' AND DATE(appointments.scheduled_at) = ?';
+      params.push(date);
+    }
+    if (doctor_id) {
+      query += ' AND appointments.doctor_id = ?';
+      params.push(doctor_id);
+    }
+    if (status) {
+      query += ' AND appointments.status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY appointments.scheduled_at ASC';
+
+    const [result] = await pool.query(query, params);
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

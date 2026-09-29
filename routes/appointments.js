@@ -18,4 +18,6 @@ router.post('/',
   appointmentsController.create
 );
 
+router.get('/', authenticateToken, appointmentsController.getAll);
+
 module.exports = router;
