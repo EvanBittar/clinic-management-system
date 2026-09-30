@@ -98,3 +98,38 @@ exports.getAll = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.updateStatus = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const clinic_id = req.user.clinicId;
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const [check] = await pool.query('SELECT clinic_id, status FROM appointments WHERE id = ?', [id]);
+    if (check.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+    if (check[0].clinic_id !== clinic_id) {
+      return res.status(403).json({ message: 'This appointment does not belong to your clinic' });
+    }
+
+    const old_status = check[0].status;
+
+    await pool.query('UPDATE appointments SET status = ? WHERE id = ?', [status, id]);
+
+    await pool.query(
+      'INSERT INTO appointment_status_log (appointment_id, old_status, new_status, changed_by) VALUES (?, ?, ?, ?)',
+      [id, old_status, status, req.user.userId]
+    );
+
+    res.status(200).json({ id, old_status, new_status: status });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

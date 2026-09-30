@@ -18,6 +18,12 @@ router.post('/',
   appointmentsController.create
 );
 
+router.patch('/:id/status',
+  authenticateToken,
+  [body('status').isIn(['new', 'confirmed', 'arrived', 'in_consultation', 'completed', 'cancelled', 'postponed', 'no_show', 'needs_follow_up']).withMessage('Invalid status value')],
+  appointmentsController.updateStatus
+);
+
 router.get('/', authenticateToken, appointmentsController.getAll);
 
 module.exports = router;
