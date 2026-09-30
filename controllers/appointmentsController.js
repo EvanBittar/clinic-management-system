@@ -133,3 +133,81 @@ exports.updateStatus = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const clinic_id = req.user.clinicId;
+
+    const [check] = await pool.query('SELECT clinic_id FROM appointments WHERE id = ?', [id]);
+    if (check.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+    if (check[0].clinic_id !== clinic_id) {
+      return res.status(403).json({ message: 'This appointment does not belong to your clinic' });
+    }
+
+    const [result] = await pool.query(`
+      SELECT 
+      appointments.id, appointments.scheduled_at, appointments.status, appointments.notes,
+       patients.name AS patient_name,
+       users.name AS doctor_name,
+       appointment_types.name AS appointment_type
+      FROM appointments
+      JOIN patients ON appointments.patient_id = patients.id
+      JOIN doctors ON appointments.doctor_id = doctors.id
+      JOIN users ON doctors.user_id = users.id
+      JOIN appointment_types ON appointments.appointment_type_id = appointment_types.id
+      WHERE appointments.id = ?`, [id]);
+
+
+    res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+exports.getDailySummary = async (req, res) => {
+  try {
+    const clinic_id = req.user.clinicId;
+    const { date } = req.query;
+
+    if (!date) {
+      return res.status(400).json({ message: 'A date is required, e.g. ?date=2026-10-01' });
+    }
+
+    const [totalRows] = await pool.query(
+      'SELECT COUNT(*) AS total FROM appointments WHERE clinic_id = ? AND DATE(scheduled_at) = ?',
+      [clinic_id, date]
+    );
+
+    const [byStatus] = await pool.query(
+      `SELECT status, COUNT(*) AS count
+       FROM appointments
+       WHERE clinic_id = ? AND DATE(scheduled_at) = ?
+       GROUP BY status`,
+      [clinic_id, date]
+    );
+
+    const [byDepartment] = await pool.query(
+      `SELECT departments.name AS department, COUNT(*) AS count
+       FROM appointments
+       JOIN doctors ON appointments.doctor_id = doctors.id
+       JOIN departments ON doctors.department_id = departments.id
+       WHERE appointments.clinic_id = ? AND DATE(appointments.scheduled_at) = ?
+       GROUP BY departments.name`,
+      [clinic_id, date]
+    );
+
+    res.json({
+      date,
+      total: totalRows[0].total,
+      byStatus,
+      byDepartment
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

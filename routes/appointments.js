@@ -26,4 +26,7 @@ router.patch('/:id/status',
 
 router.get('/', authenticateToken, appointmentsController.getAll);
 
+router.get('/:id', authenticateToken, appointmentsController.getById);
+router.get('/summary/daily', authenticateToken, appointmentsController.getDailySummary);
+
 module.exports = router;
