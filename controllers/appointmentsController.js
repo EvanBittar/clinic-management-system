@@ -1,5 +1,6 @@
 const pool = require("../config/db");
 const { validationResult } = require('express-validator');
+const { createNotification } = require('./notificationsController');
 
 exports.create = async (req, res) => {
   try {
@@ -48,6 +49,15 @@ exports.create = async (req, res) => {
       [clinic_id, patient_id, doctor_id, appointment_type_id, scheduled_at, notes || null, req.user.userId]
     );
 
+    // Get the doctor's user_id and their assistant's user_id
+    const [docInfo] = await pool.query('SELECT user_id, assistant_user_id FROM doctors WHERE id = ?', [doctor_id]);
+
+    await createNotification(clinic_id, docInfo[0].user_id, result.insertId, 'new_appointment', `New appointment scheduled for ${scheduled_at}`);
+
+    if (docInfo[0].assistant_user_id) {
+      await createNotification(clinic_id, docInfo[0].assistant_user_id, result.insertId, 'new_appointment', `New appointment scheduled for ${scheduled_at}`);
+    }
+
     res.status(201).json({
       id: result.insertId, clinic_id, patient_id, doctor_id, appointment_type_id,
       scheduled_at, notes: notes || null, status: 'new'
@@ -63,15 +73,18 @@ exports.getAll = async (req, res) => {
     const { date, doctor_id, status } = req.query;
 
     let query = `
-      SELECT appointments.id, appointments.scheduled_at, appointments.status, appointments.notes,
-             patients.name AS patient_name,
-             users.name AS doctor_name,
-             appointment_types.name AS appointment_type
+    SELECT appointments.id, 
+        appointments.scheduled_at, 
+        appointments.status, 
+        appointments.notes,
+        patients.name AS patient_name,
+        users.name AS doctor_name,
+        appointment_types.name AS appointment_type
       FROM appointments
       JOIN patients ON appointments.patient_id = patients.id
       JOIN doctors ON appointments.doctor_id = doctors.id
       JOIN users ON doctors.user_id = users.id
-      JOIN appointment_types ON appointments.appointment_type_id = appointment_types.id
+      LEFT JOIN appointment_types ON appointments.appointment_type_id = appointment_types.id
       WHERE appointments.clinic_id = ?
     `;
     const params = [clinic_id];
