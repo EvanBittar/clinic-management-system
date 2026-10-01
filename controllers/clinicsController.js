@@ -15,7 +15,23 @@ exports.create = async (req, res) => {
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({message: 'Internal Server Error'});
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 }
 
+exports.toggleActive = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    const [result] = await pool.query('UPDATE clinics SET is_active = ? WHERE id = ?', [is_active, id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Clinic not found' });
+    }
+
+    res.json({ id, is_active });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

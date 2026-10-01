@@ -11,6 +11,16 @@ router.post('/'
         body('name').trim().notEmpty().withMessage('Clinic name is required'),
         body('clinic_type_id').isInt().withMessage('A valid clinic_type_id is required')
     ],
-    clinicsController.create);
+    clinicsController.create
+);
+
+router.put('/:id',
+    authenticateToken,
+    authorizeRoles('super_admin'),
+    [
+        body('is_active')
+    ],
+    clinicsController.toggleActive
+);
 
 module.exports = router;

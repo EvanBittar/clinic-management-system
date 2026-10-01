@@ -163,3 +163,70 @@ exports.update = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.toggleStatus = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    // 1. Fetch Target User
+    const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [id]);
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const targetUser = users[0];
+
+    // 2. Tenant Isolation Check
+    if (String(targetUser.clinic_id) !== String(req.user.clinicId)) {
+      return res.status(403).json({ message: 'This user does not belong to your clinic' });
+    }
+
+    // 3. Self-Deactivation Guard
+    if (String(targetUser.id) === String(req.user.userId)) {
+      return res.status(400).json({ message: 'You cannot deactivate your own account' });
+    }
+
+    // 4. Role Hierarchy Check
+    // Hierarchy: manager > deputy_manager > (doctor, reception, assistant, etc.)
+    const actorRole = req.user.role;
+    const targetRole = targetUser.role;
+
+    if (actorRole === 'manager') {
+      // Manager cannot modify another manager or super_admin
+      if (['manager', 'super_admin'].includes(targetRole)) {
+        return res.status(403).json({ message: 'Managers cannot modify status of other managers' });
+      }
+    } else if (actorRole === 'deputy_manager') {
+      // Deputy Manager can only manage operational staff (cannot modify managers or deputy_managers)
+      if (['manager', 'deputy_manager', 'super_admin'].includes(targetRole)) {
+        return res.status(403).json({ message: 'Deputy managers cannot modify status of managers or deputy managers' });
+      }
+    } else {
+      // Operational staff cannot toggle user status
+      return res.status(403).json({ message: 'You are not authorized to update user status' });
+    }
+
+    // 5. Update Status
+    await pool.query('UPDATE users SET is_active = ? WHERE id = ?', [is_active, id]);
+
+    // 6. Return Updated User State
+    const [updated] = await pool.query(
+      'SELECT id, clinic_id, name, username, role, is_active FROM users WHERE id = ?',
+      [id]
+    );
+
+    res.json({
+      message: `User status updated to ${is_active ? 'active' : 'inactive'}`,
+      user: updated[0]
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

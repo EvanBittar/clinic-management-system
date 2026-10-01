@@ -32,4 +32,11 @@ router.put(
   usersController.update,
 );
 
+router.patch('/:id/status',
+  authenticateToken,
+  authorizeRoles('manager', 'deputy_manager'),
+  [body('is_active').isBoolean().withMessage('is_active must be a boolean')],
+  usersController.toggleStatus
+);
+
 module.exports = router;
