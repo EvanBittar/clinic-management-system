@@ -19,4 +19,17 @@ router.post('/',
 
 router.get('/', authenticateToken, patientsController.getAll);
 
+router.put(
+  '/:id',
+  authenticateToken,
+  authorizeRoles('manager', 'deputy_manager', 'reception'),
+  [
+    body('name').optional().isString().trim().notEmpty().withMessage('Name cannot be empty'),
+    body('phone').optional({ nullable: true }).trim().matches(/^\+?[0-9\s\-()]{7,20}$/),
+    body('date_of_birth').optional({ nullable: true }).isISO8601().withMessage('date_of_birth must be a valid YYYY-MM-DD date'),
+    body('notes').optional({ nullable: true }).isString()
+  ],
+  patientsController.update
+);
+
 module.exports = router;

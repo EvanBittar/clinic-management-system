@@ -71,3 +71,86 @@ exports.getAll = async (req, res) => {
 
   }
 };
+
+exports.update = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+    const { department_id, assistant_user_id } = req.body;
+
+    const [doctors] = await pool.query('SELECT * FROM doctors WHERE id = ?', [id]);
+    if (doctors.length === 0) {
+      return res.status(404).json({ message: 'Doctor record not found' });
+    }
+    const targetDoctor = doctors[0];
+
+    if (String(targetDoctor.clinic_id) !== String(req.user.clinicId)) {
+      return res.status(403).json({ message: 'This doctor record does not belong to your clinic' });
+    }
+
+    const isSelf = req.user.role === 'doctor' && req.user.userId === targetDoctor.user_id;
+    const isAdminStaff = ['manager', 'deputy_manager'].includes(req.user.role);
+
+    if (!isAdminStaff && !isSelf) {
+      return res.status(403).json({ message: 'You are not authorized to update this doctor record' });
+    }
+
+    if (department_id !== undefined && department_id !== null) {
+      const [depts] = await pool.query(
+        'SELECT id FROM departments WHERE id = ? AND clinic_id = ?',
+        [department_id, req.user.clinicId]
+      );
+      if (depts.length === 0) {
+        return res.status(400).json({ message: 'Invalid department_id or department does not belong to your clinic' });
+      }
+    }
+    if (assistant_user_id !== undefined && assistant_user_id !== null) {
+      const [assistants] = await pool.query(
+        'SELECT id FROM users WHERE id = ? AND clinic_id = ? AND role = "assistant"',
+        [assistant_user_id, req.user.clinicId]
+      );
+      if (assistants.length === 0) {
+        return res.status(400).json({ message: 'Invalid assistant_user_id or user is not an assistant in your clinic' });
+      }
+    }
+
+    const fields = [];
+    const values = [];
+
+    if (department_id !== undefined) {
+      fields.push('department_id = ?');
+      values.push(department_id);
+    }
+    if (assistant_user_id !== undefined) {
+      fields.push('assistant_user_id = ?');
+      values.push(assistant_user_id);
+    }
+
+    if (fields.length === 0) {
+      return res.status(400).json({ message: 'No fields provided to update' });
+    }
+
+    values.push(id);
+    await pool.query(`UPDATE doctors SET ${fields.join(', ')} WHERE id = ?`, values);
+
+    const [updated] = await pool.query(
+      `SELECT d.id, d.clinic_id, d.user_id, u.name AS doctor_name, 
+              d.department_id, dep.name AS department_name, d.assistant_user_id 
+       FROM doctors d
+       JOIN users u ON d.user_id = u.id
+       LEFT JOIN departments dep ON d.department_id = dep.id
+       WHERE d.id = ?`,
+      [id]
+    );
+
+    res.json(updated[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
