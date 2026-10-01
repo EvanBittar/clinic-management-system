@@ -51,13 +51,11 @@ exports.update = async (req, res) => {
     }
     const targetDepartment = departments[0];
 
-    if (req.user.role !== 'super_admin') {
-      if (String(targetDepartment.clinic_id) !== String(req.user.clinicId)) {
-        return res.status(403).json({ message: 'This department does not belong to your clinic' });
-      }
-      if (!['manager', 'deputy_manager'].includes(req.user.role)) {
-        return res.status(403).json({ message: 'You are not allowed to update departments' });
-      }
+    if (!['manager', 'deputy_manager'].includes(req.user.role)) {
+      return res.status(403).json({ message: 'You are not allowed to update departments' });
+    }
+    if (String(targetDepartment.clinic_id) !== String(req.user.clinicId)) {
+      return res.status(403).json({ message: 'This department does not belong to your clinic' });
     }
 
     const fields = [];

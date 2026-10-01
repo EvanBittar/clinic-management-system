@@ -15,9 +15,9 @@ router.post('/',
 
 router.get('/', authenticateToken, departmentsController.getAll);
 
-router.put('/:id', authenticateToken, authorizeRoles('super_admin','manager', 'deputy_manager'),
+router.put('/:id', authenticateToken, authorizeRoles('manager', 'deputy_manager'),
     [
-        body('name').isString().trim().notEmpty().withMessage('Department name cannot be empty')
+        body('name').optional().isString().trim().notEmpty().withMessage('Department name cannot be empty')
     ],
     departmentsController.update
 );
