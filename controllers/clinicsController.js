@@ -21,15 +21,28 @@ exports.create = async (req, res) => {
 
 exports.toggleActive = async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
     const { id } = req.params;
     const { is_active } = req.body;
 
-    const [result] = await pool.query('UPDATE clinics SET is_active = ? WHERE id = ?', [is_active, id]);
+    const [result] = await pool.query(
+      'UPDATE clinics SET is_active = ? WHERE id = ?', 
+      [is_active, id]
+    );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Clinic not found' });
     }
 
-    res.json({ id, is_active });
+    res.json({
+      message: `Clinic status updated to ${is_active ? 'active' : 'inactive'}`,
+      id: Number(id),
+      is_active
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });

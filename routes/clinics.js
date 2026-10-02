@@ -7,19 +7,18 @@ const { body } = require('express-validator');
 
 router.post('/'
     , authenticateToken,
-    authorizeRoles('super_admin'),[
-        body('name').trim().notEmpty().withMessage('Clinic name is required'),
-        body('clinic_type_id').isInt().withMessage('A valid clinic_type_id is required')
-    ],
+    authorizeRoles('super_admin'), [
+    body('name').trim().notEmpty().withMessage('Clinic name is required'),
+    body('clinic_type_id').isInt().withMessage('A valid clinic_type_id is required')
+],
     clinicsController.create
 );
 
-router.put('/:id',
+router.patch('/:id/status',
     authenticateToken,
-    authorizeRoles('super_admin'),
-    [
-        body('is_active')
-    ],
+    authorizeRoles('super_admin'), [
+    body('is_active').isBoolean().withMessage('is_active must be a boolean')
+],
     clinicsController.toggleActive
 );
 
