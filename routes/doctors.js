@@ -3,7 +3,7 @@ const router = express.Router();
 const authenticateToken = require('../middleware/auth');
 const authorizeRoles = require('../middleware/authorize');
 const doctorsController = require('../controllers/doctorsController');
-const { body } = require('express-validator');
+const { query, body } = require('express-validator');
 
 router.post('/',
     authenticateToken,
@@ -28,6 +28,23 @@ router.put(
         body('assistant_user_id').optional({ nullable: true }).isInt().withMessage('assistant_user_id must be an integer or null')
     ],
     doctorsController.update
+);
+
+router.get(
+    '/schedule',
+    authenticateToken,
+    authorizeRoles('super_admin', 'manager', 'deputy_manager', 'doctor', 'assistant'), [
+    query('date').optional().isISO8601().withMessage('Valid date required (YYYY-MM-DD)'),
+    query('doctor_id').optional().isInt().withMessage('Valid doctor_id required')
+],
+    doctorsController.getSchedule
+);
+
+router.get(
+    '/:id',
+    authenticateToken,
+    authorizeRoles('super_admin', 'manager', 'deputy_manager', 'reception', 'doctor'),
+    doctorsController.getById
 );
 
 module.exports = router;

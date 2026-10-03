@@ -230,3 +230,109 @@ exports.toggleStatus = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.getAll = async (req, res) => {
+  try {
+    const { role, clinicId } = req.user;
+
+    let query = `
+      SELECT u.id, u.clinic_id, u.name, u.username, u.role, u.is_active, u.created_at, c.name AS clinic_name
+      FROM users u
+      LEFT JOIN clinics c ON u.clinic_id = c.id
+    `;
+    const params = [];
+
+    if (role !== 'super_admin') {
+      query += ' WHERE u.clinic_id = ?';
+      params.push(clinicId);
+    }
+
+    query += ' ORDER BY u.created_at DESC';
+
+    const [users] = await pool.query(query, params);
+    res.json(users);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+exports.getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, clinicId } = req.user;
+
+    const [users] = await pool.query(`
+      SELECT u.id, u.clinic_id, u.name, u.username, u.role, u.is_active, u.created_at, c.name AS clinic_name
+      FROM users u
+      LEFT JOIN clinics c ON u.clinic_id = c.id
+      WHERE u.id = ?
+    `, [id]);
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const targetUser = users[0];
+
+    // Multi-tenant isolation check using targetUser.clinic_id and req.user.clinicId
+    if (role !== 'super_admin' && targetUser.clinic_id !== clinicId) {
+      return res.status(403).json({ message: 'Access denied: Cannot view staff outside your clinic' });
+    }
+
+    res.json(targetUser);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// 3. Get login logs ("Who logged in on a given day")
+exports.getLoginLogs = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { role, clinicId } = req.user;
+
+    // Default to today's date (YYYY-MM-DD) if no query param is passed
+    const targetDate = req.query.date || new Date().toISOString().split('T')[0];
+
+    let query = `
+      SELECT l.id, l.user_id, u.name AS user_name, u.username, u.role, l.clinic_id, l.logged_in_at
+      FROM login_logs l
+      JOIN users u ON l.user_id = u.id
+    `;
+    const params = [];
+    const conditions = [];
+
+    // Tenant isolation
+    if (role !== 'super_admin') {
+      conditions.push('l.clinic_id = ?');
+      params.push(clinicId);
+    }
+
+    // Filter by target date
+    conditions.push('DATE(l.logged_in_at) = ?');
+    params.push(targetDate);
+
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY l.logged_in_at DESC';
+
+    const [logs] = await pool.query(query, params);
+
+    res.json({
+      date: targetDate,
+      count: logs.length,
+      logs
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

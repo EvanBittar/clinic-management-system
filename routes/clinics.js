@@ -22,4 +22,27 @@ router.patch('/:id/status',
     clinicsController.toggleActive
 );
 
+router.get('/',
+    authenticateToken,
+    authorizeRoles('super_admin'),
+    clinicsController.getAll
+);
+
+router.get(
+    '/:id',
+    authenticateToken, 
+    clinicsController.getById
+);
+
+router.put(
+  '/:id',
+  authenticateToken,
+  authorizeRoles('super_admin','manager'),
+  [
+    body('name').notEmpty().trim().withMessage('Clinic name is required'),
+    body('clinic_type_id').optional({ nullable: true }).isInt().withMessage('Valid clinic_type_id required')
+  ],
+  clinicsController.update
+);
+
 module.exports = router;

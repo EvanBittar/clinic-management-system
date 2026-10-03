@@ -84,3 +84,43 @@ exports.update = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.deleteDepartment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, clinicId } = req.user;
+
+    // 1. Check department existence and tenant access
+    const [dept] = await pool.query('SELECT clinic_id FROM departments WHERE id = ?', [id]);
+    if (dept.length === 0) {
+      return res.status(404).json({ message: 'Department not found' });
+    }
+
+    if (role !== 'super_admin' && dept[0].clinic_id !== clinicId) {
+      return res.status(403).json({ message: 'Access denied: Department belongs to another clinic' });
+    }
+
+    // 2. Check if any ACTIVE doctors are assigned
+    const [activeDoctors] = await pool.query(
+      'SELECT d.id FROM doctors d JOIN users u ON d.user_id = u.id WHERE d.department_id = ? AND u.is_active = 1 LIMIT 1',
+      [id]
+    );
+
+    if (activeDoctors.length > 0) {
+      return res.status(400).json({
+        message: 'Cannot delete department: Active doctors are currently assigned to it. Reassign or remove them first.'
+      });
+    }
+
+    // 3. Unassign inactive doctors (set department_id = NULL) so the FK constraint doesn't fail
+    await pool.query('UPDATE doctors SET department_id = NULL WHERE department_id = ?', [id]);
+
+    // 4. Delete department
+    await pool.query('DELETE FROM departments WHERE id = ?', [id]);
+
+    res.json({ message: 'Department deleted successfully', id: Number(id) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

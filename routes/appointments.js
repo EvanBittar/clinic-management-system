@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authorizeRoles = require('../middleware/authorize');
 const authenticateToken = require('../middleware/auth');
-const { body } = require('express-validator');
+const { param, body } = require('express-validator');
 const appointmentsController = require('../controllers/appointmentsController');
 
 router.post('/',
@@ -22,6 +22,20 @@ router.patch('/:id/status',
   authenticateToken,
   [body('status').isIn(['new', 'confirmed', 'arrived', 'in_consultation', 'completed', 'cancelled', 'postponed', 'no_show', 'needs_follow_up']).withMessage('Invalid status value')],
   appointmentsController.updateStatus
+);
+
+router.put(
+  '/:id',
+  authenticateToken,
+  authorizeRoles('super_admin', 'manager', 'deputy_manager', 'reception', 'doctor'),
+  [
+    param('id').isInt().withMessage('Valid appointment ID required'),
+    body('scheduled_at').optional().isISO8601().withMessage('Valid ISO8601 datetime required'),
+    body('notes').optional().isString().trim(),
+    body('doctor_id').optional().isInt().withMessage('Valid doctor_id required'),
+    body('appointment_type_id').optional().isInt().withMessage('Valid appointment_type_id required')
+  ],
+  appointmentsController.update
 );
 
 router.get('/', authenticateToken, appointmentsController.getAll);

@@ -224,3 +224,93 @@ exports.getDailySummary = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.update = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { id } = req.params;
+    const { scheduled_at, notes, doctor_id, appointment_type_id } = req.body;
+    const { role, clinicId } = req.user;
+
+    // 1. Fetch appointment & verify multi-tenant access
+    const [existing] = await pool.query('SELECT clinic_id FROM appointments WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    const targetClinicId = existing[0].clinic_id;
+
+    if (role !== 'super_admin' && targetClinicId !== clinicId) {
+      return res.status(403).json({ message: 'Access denied: Appointment belongs to another clinic' });
+    }
+
+    // 2. Validate doctor_id if provided
+    if (doctor_id) {
+      const [doctorCheck] = await pool.query(
+        'SELECT id FROM doctors WHERE id = ? AND clinic_id = ?',
+        [doctor_id, targetClinicId]
+      );
+      if (doctorCheck.length === 0) {
+        return res.status(400).json({ message: 'Doctor not found or does not belong to this clinic' });
+      }
+    }
+
+    // 3. Build dynamic SQL update query
+    const updateFields = [];
+    const queryParams = [];
+
+    if (scheduled_at !== undefined) {
+      updateFields.push('scheduled_at = ?');
+      queryParams.push(scheduled_at);
+    }
+    if (notes !== undefined) {
+      updateFields.push('notes = ?');
+      queryParams.push(notes);
+    }
+    if (doctor_id !== undefined) {
+      updateFields.push('doctor_id = ?');
+      queryParams.push(doctor_id);
+    }
+    if (appointment_type_id !== undefined) {
+      updateFields.push('appointment_type_id = ?');
+      queryParams.push(appointment_type_id);
+    }
+
+    if (updateFields.length === 0) {
+      return res.status(400).json({ message: 'No fields provided for update' });
+    }
+
+    queryParams.push(id);
+
+    const sql = `UPDATE appointments SET ${updateFields.join(', ')} WHERE id = ?`;
+    await pool.query(sql, queryParams);
+
+    // 4. Return updated appointment
+    const [updated] = await pool.query(`
+      SELECT 
+        a.id, a.clinic_id, a.patient_id, a.doctor_id, a.appointment_type_id,
+        a.scheduled_at, a.status, a.notes, a.created_at,
+        p.name AS patient_name,
+        u.name AS doctor_name,
+        at.name AS appointment_type
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      LEFT JOIN doctors d ON a.doctor_id = d.id
+      LEFT JOIN users u ON d.user_id = u.id
+      LEFT JOIN appointment_types at ON a.appointment_type_id = at.id
+      WHERE a.id = ?
+    `, [id]);
+
+    res.json({
+      message: 'Appointment updated successfully',
+      appointment: updated[0]
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

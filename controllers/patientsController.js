@@ -111,3 +111,59 @@ exports.update = async (req, res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+exports.getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, clinicId } = req.user;
+
+    // 1. Fetch patient details with tenant check
+    let patientQuery = `
+      SELECT id, clinic_id, name, phone, date_of_birth, created_at
+      FROM patients
+      WHERE id = ?
+    `;
+    const patientParams = [id];
+
+    if (role !== 'super_admin') {
+      patientQuery += ' AND clinic_id = ?';
+      patientParams.push(clinicId);
+    }
+
+    const [patients] = await pool.query(patientQuery, patientParams);
+
+    if (patients.length === 0) {
+      return res.status(404).json({ message: 'Patient not found' });
+    }
+
+    const patient = patients[0];
+
+    // 2. Fetch joined appointment history for this patient
+    const [appointments] = await pool.query(`
+      SELECT 
+        a.id AS appointment_id,
+        a.scheduled_at,
+        a.status,
+        a.notes,
+        d.id AS doctor_id,
+        u.name AS doctor_name,
+        at.name AS appointment_type
+      FROM appointments a
+      LEFT JOIN doctors d ON a.doctor_id = d.id
+      LEFT JOIN users u ON d.user_id = u.id
+      LEFT JOIN appointment_types at ON a.appointment_type_id = at.id
+      WHERE a.patient_id = ? AND a.clinic_id = ?
+      ORDER BY a.scheduled_at DESC
+    `, [id, patient.clinic_id]);
+
+    // Return combined payload
+    res.json({
+      ...patient,
+      total_appointments: appointments.length,
+      appointment_history: appointments
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};

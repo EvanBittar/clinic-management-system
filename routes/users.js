@@ -3,7 +3,7 @@ const router = express.Router();
 const authenticateToken = require('../middleware/auth');
 const authorizeRoles = require('../middleware/authorize');
 const usersController = require('../controllers/usersController');
-const { body } = require('express-validator');
+const { query, body } = require('express-validator');
 
 router.post('/',
   authenticateToken,
@@ -34,9 +34,33 @@ router.put(
 
 router.patch('/:id/status',
   authenticateToken,
-  authorizeRoles('manager', 'deputy_manager'),
-  [body('is_active').isBoolean().withMessage('is_active must be a boolean')],
+  authorizeRoles('manager', 'deputy_manager'), [
+  body('is_active').isBoolean().withMessage('is_active must be a boolean')
+],
   usersController.toggleStatus
+);
+
+router.get(
+  '/',
+  authenticateToken,
+  authorizeRoles('super_admin', 'manager', 'deputy_manager'),
+  usersController.getAll
+);
+
+router.get(
+  '/login-logs',
+  authenticateToken,
+  authorizeRoles('super_admin', 'manager', 'deputy_manager'), [
+  query('date').optional().isISO8601().withMessage('Date must be in valid format (YYYY-MM-DD)')
+],
+  usersController.getLoginLogs
+);
+
+router.get(
+  '/:id',
+  authenticateToken,
+  authorizeRoles('super_admin', 'manager', 'deputy_manager'),
+  usersController.getById
 );
 
 module.exports = router;

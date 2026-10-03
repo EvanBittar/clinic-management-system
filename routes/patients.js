@@ -3,7 +3,7 @@ const router = express.Router();
 const authenticateToken = require('../middleware/auth');
 const authorizeRoles = require('../middleware/authorize');
 const patientsController = require('../controllers/patientsController');
-const { body } = require('express-validator');
+const { param,body } = require('express-validator');
 
 router.post('/',
   authenticateToken,
@@ -30,6 +30,14 @@ router.put(
     body('notes').optional({ nullable: true }).isString()
   ],
   patientsController.update
+);
+
+router.get(
+  '/:id',
+  authenticateToken,
+  authorizeRoles('super_admin', 'manager', 'deputy_manager', 'reception', 'doctor'),
+  [param('id').isInt().withMessage('Valid patient ID required')],
+  patientsController.getById
 );
 
 module.exports = router;

@@ -22,4 +22,11 @@ router.put('/:id', authenticateToken, authorizeRoles('manager', 'deputy_manager'
     departmentsController.update
 );
 
+router.delete(
+  '/:id',
+  authenticateToken,
+  authorizeRoles('super_admin', 'manager'),
+  departmentsController.deleteDepartment
+);
+
 module.exports = router;

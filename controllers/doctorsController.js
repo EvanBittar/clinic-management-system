@@ -56,19 +56,39 @@ exports.create = async (req, res) => {
 
 exports.getAll = async (req, res) => {
   try {
-    const [result] = await pool.query(
-      'SELECT doctors.id, users.name AS doctor_name, departments.name AS department_name, doctors.assistant_user_id ' +
-      'FROM doctors ' +
-      'JOIN users ON users.id = doctors.user_id ' +
-      'JOIN departments ON doctors.department_id = departments.id ' +
-      'WHERE doctors.clinic_id = ?;',
-      [req.user.clinicId]
-    );
-    res.json(result);
+    const { role, clinicId } = req.user;
+
+    let query = `
+      SELECT 
+        d.id, 
+        d.clinic_id,
+        u.name AS doctor_name, 
+        u.is_active,
+        dep.name AS department_name, 
+        d.assistant_user_id,
+        ast.name AS assistant_name
+      FROM doctors d
+      JOIN users u ON d.user_id = u.id
+      LEFT JOIN departments dep ON d.department_id = dep.id
+      LEFT JOIN users ast ON d.assistant_user_id = ast.id
+    `;
+    
+    const params = [];
+
+    // Tenant isolation check
+    if (role !== 'super_admin') {
+      query += ' WHERE d.clinic_id = ?';
+      params.push(clinicId);
+    }
+
+    query += ' ORDER BY u.name ASC';
+
+    const [doctors] = await pool.query(query, params);
+    
+    res.json(doctors);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
-
   }
 };
 
@@ -149,6 +169,113 @@ exports.update = async (req, res) => {
 
     res.json(updated[0]);
 
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+exports.getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, clinicId } = req.user;
+
+    const [doctors] = await pool.query(`
+      SELECT 
+        d.id,
+        d.user_id, 
+        d.clinic_id, 
+        d.department_id, 
+        d.assistant_user_id,
+        u.name AS doctor_name, 
+        u.username, 
+        dep.name AS department_name,
+        ast.name AS assistant_name
+      FROM doctors d
+      JOIN users u ON d.user_id = u.id
+      LEFT JOIN departments dep ON d.department_id = dep.id
+      LEFT JOIN users ast ON d.assistant_user_id = ast.id
+      WHERE d.id = ?
+    `, [id]);
+
+    if (doctors.length === 0) {
+      return res.status(404).json({ message: 'Doctor profile not found' });
+    }
+
+    const doctor = doctors[0];
+
+    if (role !== 'super_admin' && doctor.clinic_id !== clinicId) {
+      return res.status(403).json({ message: 'Access denied: Doctor belongs to another clinic' });
+    }
+
+    res.json(doctor);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+exports.getSchedule = async (req, res) => {
+  try {
+    const { userId, role, clinicId } = req.user;
+    const targetDate = req.query.date || new Date().toISOString().split('T')[0];
+
+    let doctorId = req.query.doctor_id;
+
+    // Automatically resolve doctor_id from user session if logged in as a doctor
+    if (!doctorId && role === 'doctor') {
+      const [doc] = await pool.query('SELECT id FROM doctors WHERE user_id = ?', [userId]);
+      if (doc.length === 0) {
+        return res.status(404).json({ message: 'No doctor profile linked to this user' });
+      }
+      doctorId = doc[0].id;
+    }
+
+    if (!doctorId) {
+      return res.status(400).json({ message: 'Doctor ID parameter is required' });
+    }
+
+    // 1. Verify doctor existence and multi-tenant access check
+    let doctorCheckQuery = 'SELECT id, clinic_id FROM doctors WHERE id = ?';
+    const doctorCheckParams = [doctorId];
+
+    if (role !== 'super_admin') {
+      doctorCheckQuery += ' AND clinic_id = ?';
+      doctorCheckParams.push(clinicId);
+    }
+
+    const [doctorExists] = await pool.query(doctorCheckQuery, doctorCheckParams);
+
+    if (doctorExists.length === 0) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+
+    // 2. Query appointments for valid doctor
+    const [appointments] = await pool.query(`
+      SELECT 
+        a.id AS appointment_id,
+        a.scheduled_at,
+        a.status,
+        a.notes,
+        p.id AS patient_id,
+        p.name AS patient_name,
+        p.phone AS patient_phone,
+        at.name AS appointment_type
+      FROM appointments a
+      JOIN patients p ON a.patient_id = p.id
+      LEFT JOIN appointment_types at ON a.appointment_type_id = at.id
+      WHERE a.doctor_id = ? 
+        AND a.clinic_id = ? 
+        AND DATE(a.scheduled_at) = ?
+      ORDER BY a.scheduled_at ASC
+    `, [doctorId, clinicId, targetDate]);
+
+    res.json({
+      date: targetDate,
+      doctor_id: Number(doctorId),
+      total_appointments: appointments.length,
+      schedule: appointments
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
