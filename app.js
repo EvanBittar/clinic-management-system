@@ -8,6 +8,7 @@ app.use(express.json());
 
 const authRoutes = require('./routes/auth');
 const clinicsRoutes = require('./routes/clinics');
+const clinicTypesRoutes = require('./routes/clinicTypes');
 const usersRoutes = require('./routes/users');
 const departmentsRoutes = require('./routes/departments');
 const doctorsRoutes = require('./routes/doctors');
@@ -17,7 +18,7 @@ const appointmentsRoutes = require('./routes/appointments');
 const notificationsRoutes = require('./routes/notifications');
 
 app.use('/clinics', clinicsRoutes);
-// app.use('/clinic-types', clinicTypesRoutes);
+app.use('/clinic-types', clinicTypesRoutes);
 app.use('/users', usersRoutes);
 app.use('/departments', departmentsRoutes);
 app.use('/doctors', doctorsRoutes);
