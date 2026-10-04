@@ -5,14 +5,18 @@ const authorizeRoles = require('../middleware/authorize');
 const doctorsController = require('../controllers/doctorsController');
 const { query, body } = require('express-validator');
 
-router.post('/',
+router.post(
+    '/',
     authenticateToken,
-    authorizeRoles('manager'),
+    authorizeRoles('super_admin', 'manager', 'deputy_manager'),
     [
-        body('clinic_id').isInt().withMessage('A valid clinic_id is required'),
+        body('clinic_id').optional().isInt().withMessage('A valid clinic_id is required'),
         body('user_id').isInt().withMessage('A valid user_id is required'),
         body('department_id').isInt().withMessage('A valid department_id is required'),
-        body('assistant_user_id').default().optional({ checkFalsy: true }).isInt().withMessage('A valid assistant_user_id is required')
+        body('assistant_user_id')
+            .optional({ checkFalsy: true })
+            .isInt()
+            .withMessage('A valid assistant_user_id is required')
     ],
     doctorsController.create
 );

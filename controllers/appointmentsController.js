@@ -22,7 +22,7 @@ exports.create = async (req, res) => {
     if (check1.length === 0) {
       return res.status(404).json({ message: 'Patient not found' });
     }
-    if (check1[0].clinic_id !== clinic_id) {
+    if (Number(check1[0].clinic_id) !== Number(clinic_id)) {
       return res.status(403).json({ message: 'This patient does not belong to your clinic' });
     }
 
@@ -31,7 +31,7 @@ exports.create = async (req, res) => {
     if (check2.length === 0) {
       return res.status(404).json({ message: 'Doctor not found' });
     }
-    if (check2[0].clinic_id !== clinic_id) {
+    if (Number(check2[0].clinic_id) !== Number(clinic_id)) {
       return res.status(403).json({ message: 'This doctor does not belong to your clinic' });
     }
 
@@ -40,7 +40,7 @@ exports.create = async (req, res) => {
     if (check3.length === 0) {
       return res.status(404).json({ message: 'Appointment type not found' });
     }
-    if (check3[0].clinic_id !== clinic_id) {
+    if (Number(check3[0].clinic_id) !== Number(clinic_id)) {
       return res.status(403).json({ message: 'This appointment type does not belong to your clinic' });
     }
 
@@ -127,7 +127,7 @@ exports.updateStatus = async (req, res) => {
     if (check.length === 0) {
       return res.status(404).json({ message: 'Appointment not found' });
     }
-    if (check[0].clinic_id !== clinic_id) {
+    if (Number(check[0].clinic_id) !== Number(clinic_id)) {
       return res.status(403).json({ message: 'This appointment does not belong to your clinic' });
     }
 
@@ -156,7 +156,7 @@ exports.getById = async (req, res) => {
     if (check.length === 0) {
       return res.status(404).json({ message: 'Appointment not found' });
     }
-    if (check[0].clinic_id !== clinic_id) {
+    if (Number(check[0].clinic_id) !== Number(clinic_id)) {
       return res.status(403).json({ message: 'This appointment does not belong to your clinic' });
     }
 
@@ -244,7 +244,7 @@ exports.update = async (req, res) => {
 
     const targetClinicId = existing[0].clinic_id;
 
-    if (role !== 'super_admin' && targetClinicId !== clinicId) {
+    if (role !== 'super_admin' && Number(targetClinicId) !== Number(clinicId)) {
       return res.status(403).json({ message: 'Access denied: Appointment belongs to another clinic' });
     }
 

@@ -276,7 +276,7 @@ exports.getById = async (req, res) => {
     const targetUser = users[0];
 
     // Multi-tenant isolation check using targetUser.clinic_id and req.user.clinicId
-    if (role !== 'super_admin' && targetUser.clinic_id !== clinicId) {
+    if (role !== 'super_admin' && Number(targetUser.clinic_id) !== Number(clinicId)) {
       return res.status(403).json({ message: 'Access denied: Cannot view staff outside your clinic' });
     }
 

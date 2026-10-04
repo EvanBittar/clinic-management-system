@@ -8,35 +8,69 @@ exports.create = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { user_id, department_id, assistant_user_id } = req.body;
+    const { user_id, department_id, assistant_user_id, clinic_id: bodyClinicId } = req.body;
+    const { role, clinicId: tokenClinicId } = req.user;
 
     let clinic_id;
-    if (req.user.role === 'manager') {
-      clinic_id = req.user.clinicId;
+    if (role === 'super_admin') {
+      clinic_id = Number(bodyClinicId || tokenClinicId);
+    } else if (['manager', 'deputy_manager'].includes(role)) {
+      clinic_id = Number(tokenClinicId);
     } else {
-      return res.status(400).json({ message: 'Managers can only create doctors' });
+      return res.status(403).json({ message: 'Access denied: Unauthorized role' });
     }
 
-    const [check] = await pool.query('SELECT clinic_id, role, is_active FROM users WHERE id = ?', [user_id]);
-
-    if (check.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!clinic_id) {
+      return res.status(400).json({ message: 'Valid clinic_id is required' });
     }
-    if (check[0].clinic_id !== clinic_id) {
+
+    const [userRows] = await pool.query(
+      'SELECT clinic_id, role, is_active FROM users WHERE id = ?',
+      [user_id]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ message: 'Doctor user not found' });
+    }
+
+    const doctorUser = userRows[0];
+    if (Number(doctorUser.clinic_id) !== clinic_id) {
       return res.status(403).json({ message: 'This user does not belong to your clinic' });
     }
-    if (check[0].role !== 'doctor') {
+    if (doctorUser.role !== 'doctor') {
       return res.status(400).json({ message: 'This user must have the doctor role' });
     }
-    if (check[0].is_active !== 1) {
-      return res.status(400).json({ message: 'This user is not active' });
+    if (doctorUser.is_active !== 1) {
+      return res.status(400).json({ message: 'This user account is inactive' });
     }
-    const [deptCheck] = await pool.query('SELECT clinic_id FROM departments WHERE id = ?', [department_id]);
-    if (deptCheck.length === 0) {
+
+    const [deptRows] = await pool.query(
+      'SELECT clinic_id FROM departments WHERE id = ?',
+      [department_id]
+    );
+
+    if (deptRows.length === 0) {
       return res.status(404).json({ message: 'Department not found' });
     }
-    if (deptCheck[0].clinic_id !== clinic_id) {
+    if (Number(deptRows[0].clinic_id) !== clinic_id) {
       return res.status(403).json({ message: 'This department does not belong to your clinic' });
+    }
+
+    if (assistant_user_id) {
+      const [assistantRows] = await pool.query(
+        'SELECT clinic_id, is_active FROM users WHERE id = ?',
+        [assistant_user_id]
+      );
+
+      if (assistantRows.length === 0) {
+        return res.status(404).json({ message: 'Assistant user not found' });
+      }
+      if (Number(assistantRows[0].clinic_id) !== clinic_id) {
+        return res.status(403).json({ message: 'Assistant user does not belong to your clinic' });
+      }
+      if (assistantRows[0].is_active !== 1) {
+        return res.status(400).json({ message: 'Assistant user account is inactive' });
+      }
     }
 
     const [result] = await pool.query(
@@ -44,10 +78,21 @@ exports.create = async (req, res) => {
       [clinic_id, user_id, department_id, assistant_user_id || null]
     );
 
-    res.status(201).json({ id: result.insertId, clinic_id, user_id, department_id, assistant_user_id: assistant_user_id || null });
+    res.status(201).json({
+      message: 'Doctor created successfully',
+      id: result.insertId,
+      clinic_id,
+      user_id,
+      department_id,
+      assistant_user_id: assistant_user_id || null
+    });
+
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ message: 'This user is already registered as a doctor' });
+    }
+    if (error.code === 'ER_NO_REFERENCED_ROW_2') {
+      return res.status(400).json({ message: 'Referenced user or department does not exist' });
     }
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
@@ -72,7 +117,7 @@ exports.getAll = async (req, res) => {
       LEFT JOIN departments dep ON d.department_id = dep.id
       LEFT JOIN users ast ON d.assistant_user_id = ast.id
     `;
-    
+
     const params = [];
 
     // Tenant isolation check
@@ -84,7 +129,7 @@ exports.getAll = async (req, res) => {
     query += ' ORDER BY u.name ASC';
 
     const [doctors] = await pool.query(query, params);
-    
+
     res.json(doctors);
   } catch (error) {
     console.error(error);
@@ -204,7 +249,7 @@ exports.getById = async (req, res) => {
 
     const doctor = doctors[0];
 
-    if (role !== 'super_admin' && doctor.clinic_id !== clinicId) {
+    if (role !== 'super_admin' && Number(doctor.clinic_id) !== Number(clinicId)) {
       return res.status(403).json({ message: 'Access denied: Doctor belongs to another clinic' });
     }
 
@@ -220,9 +265,12 @@ exports.getSchedule = async (req, res) => {
     const { userId, role, clinicId } = req.user;
     const targetDate = req.query.date || new Date().toISOString().split('T')[0];
 
+    if (req.query.date && !/^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+      return res.status(400).json({ message: 'Invalid date format. Use YYYY-MM-DD' });
+    }
+
     let doctorId = req.query.doctor_id;
 
-    // Automatically resolve doctor_id from user session if logged in as a doctor
     if (!doctorId && role === 'doctor') {
       const [doc] = await pool.query('SELECT id FROM doctors WHERE user_id = ?', [userId]);
       if (doc.length === 0) {
@@ -231,11 +279,18 @@ exports.getSchedule = async (req, res) => {
       doctorId = doc[0].id;
     }
 
+    if (!doctorId && role === 'assistant') {
+      const [doc] = await pool.query('SELECT id FROM doctors WHERE assistant_user_id = ?', [userId]);
+      if (doc.length === 0) {
+        return res.status(404).json({ message: 'No doctor assigned to this assistant' });
+      }
+      doctorId = doc[0].id;
+    }
+
     if (!doctorId) {
       return res.status(400).json({ message: 'Doctor ID parameter is required' });
     }
 
-    // 1. Verify doctor existence and multi-tenant access check
     let doctorCheckQuery = 'SELECT id, clinic_id FROM doctors WHERE id = ?';
     const doctorCheckParams = [doctorId];
 
@@ -244,14 +299,16 @@ exports.getSchedule = async (req, res) => {
       doctorCheckParams.push(clinicId);
     }
 
-    const [doctorExists] = await pool.query(doctorCheckQuery, doctorCheckParams);
+    const [doctorRows] = await pool.query(doctorCheckQuery, doctorCheckParams);
 
-    if (doctorExists.length === 0) {
-      return res.status(404).json({ message: 'Doctor not found' });
+    if (doctorRows.length === 0) {
+      return res.status(404).json({ message: 'Doctor not found or access denied' });
     }
 
-    // 2. Query appointments for valid doctor
-    const [appointments] = await pool.query(`
+    const targetClinicId = doctorRows[0].clinic_id;
+
+    const [appointments] = await pool.query(
+      `
       SELECT 
         a.id AS appointment_id,
         a.scheduled_at,
@@ -268,7 +325,9 @@ exports.getSchedule = async (req, res) => {
         AND a.clinic_id = ? 
         AND DATE(a.scheduled_at) = ?
       ORDER BY a.scheduled_at ASC
-    `, [doctorId, clinicId, targetDate]);
+      `,
+      [doctorId, targetClinicId, targetDate]
+    );
 
     res.json({
       date: targetDate,

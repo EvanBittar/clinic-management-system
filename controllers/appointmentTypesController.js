@@ -7,14 +7,25 @@ exports.create = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
-    const { name } = req.body;
+
+    const { name, clinic_id: bodyClinicId } = req.body;
+    const { role, clinicId: tokenClinicId } = req.user;
+
     let clinic_id;
-    if (req.user.role !== 'manager') {
-      return res.status(400).json({ message: 'Managers can only create appointment type' });
+    if (role === 'super_admin') {
+      clinic_id = Number(bodyClinicId);
+    } else if (['manager', 'deputy_manager'].includes(role)) {
+      clinic_id = Number(tokenClinicId);
     } else {
-      clinic_id = req.user.clinicId
+      return res.status(403).json({ message: 'You are not allowed to create appointment types' });
     }
-    const [result] = await pool.query('INSERT INTO appointment_types (clinic_id,name) VALUES (?,?)',
+
+    if (!clinic_id) {
+      return res.status(400).json({ message: 'Valid clinic_id is required' });
+    }
+
+    const [result] = await pool.query(
+      'INSERT INTO appointment_types (clinic_id, name) VALUES (?, ?)',
       [clinic_id, name]
     );
 
@@ -27,9 +38,21 @@ exports.create = async (req, res) => {
 
 exports.getAll = async (req, res) => {
   try {
-    const [result] = await pool.query('SELECT * FROM appointment_types WHERE clinic_id = ?'
-      , [req.user.clinicId]);
+    const { role, clinicId } = req.user;
+    const { clinic_id: queryClinicId } = req.query;
 
+    let sql = 'SELECT * FROM appointment_types';
+    const params = [];
+
+    if (role !== 'super_admin') {
+      sql += ' WHERE clinic_id = ?';
+      params.push(clinicId);
+    } else if (queryClinicId) {
+      sql += ' WHERE clinic_id = ?';
+      params.push(queryClinicId);
+    }
+
+    const [result] = await pool.query(sql, params);
     res.json(result);
   } catch (error) {
     console.error(error);

@@ -28,7 +28,22 @@ exports.create = async (req, res) => {
 
 exports.getAll = async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM departments');
+    const { role, clinicId } = req.user;
+    const { clinic_id: queryClinicId } = req.query;
+
+    let sql = 'SELECT * FROM departments';
+    const params = [];
+
+    if (role !== 'super_admin') {
+      sql += ' WHERE clinic_id = ?';
+      params.push(clinicId);
+    } 
+    else if (queryClinicId) {
+      sql += ' WHERE clinic_id = ?';
+      params.push(queryClinicId);
+    }
+
+    const [rows] = await pool.query(sql, params);
     res.json(rows);
   } catch (error) {
     console.error(error);
@@ -96,7 +111,7 @@ exports.deleteDepartment = async (req, res) => {
       return res.status(404).json({ message: 'Department not found' });
     }
 
-    if (role !== 'super_admin' && dept[0].clinic_id !== clinicId) {
+    if (role !== 'super_admin' && Number(dept[0].clinic_id) !== Number(clinicId)) {
       return res.status(403).json({ message: 'Access denied: Department belongs to another clinic' });
     }
 

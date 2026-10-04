@@ -25,7 +25,7 @@ router.put(
   authorizeRoles('manager', 'deputy_manager', 'reception'),
   [
     body('name').optional().isString().trim().notEmpty().withMessage('Name cannot be empty'),
-    body('phone').optional({ values: 'falsy' }).trim().matches(/^\+?[0-9\s\-()]{7,20}$/).withMessage('Invalid phone number format'),,
+    body('phone').optional({ values: 'falsy' }).trim().matches(/^\+?[0-9\s\-()]{7,20}$/).withMessage('Invalid phone number format'),
     body('date_of_birth').optional({ nullable: true }).isISO8601().withMessage('date_of_birth must be a valid YYYY-MM-DD date'),
     body('notes').optional({ nullable: true }).isString()
   ],

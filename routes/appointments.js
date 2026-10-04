@@ -5,8 +5,10 @@ const authenticateToken = require('../middleware/auth');
 const { param, body } = require('express-validator');
 const appointmentsController = require('../controllers/appointmentsController');
 
-router.post('/',
-  authenticateToken,
+router.use(authenticateToken);
+
+router.post(
+  '/',
   authorizeRoles('manager', 'deputy_manager', 'reception'),
   [
     body('patient_id').isInt().withMessage('A valid patient_id is required'),
@@ -18,15 +20,8 @@ router.post('/',
   appointmentsController.create
 );
 
-router.patch('/:id/status',
-  authenticateToken,
-  [body('status').isIn(['new', 'confirmed', 'arrived', 'in_consultation', 'completed', 'cancelled', 'postponed', 'no_show', 'needs_follow_up']).withMessage('Invalid status value')],
-  appointmentsController.updateStatus
-);
-
 router.put(
   '/:id',
-  authenticateToken,
   authorizeRoles('super_admin', 'manager', 'deputy_manager', 'reception', 'doctor'),
   [
     param('id').isInt().withMessage('Valid appointment ID required'),
@@ -38,9 +33,27 @@ router.put(
   appointmentsController.update
 );
 
-router.get('/', authenticateToken, appointmentsController.getAll);
+router.patch(
+  '/:id/status',
+  authorizeRoles('super_admin', 'manager', 'deputy_manager', 'reception', 'doctor'),
+  [
+    param('id').isInt().withMessage('Valid appointment ID required'),
+    body('status').isIn([
+      'new', 'confirmed', 'arrived', 'in_consultation', 
+      'completed', 'cancelled', 'postponed', 'no_show', 'needs_follow_up'
+    ]).withMessage('Invalid status value')
+  ],
+  appointmentsController.updateStatus
+);
 
-router.get('/:id', authenticateToken, appointmentsController.getById);
-router.get('/summary/daily', authenticateToken, appointmentsController.getDailySummary);
+router.get('/', appointmentsController.getAll);
+
+router.get('/summary/daily', appointmentsController.getDailySummary);
+
+router.get(
+  '/:id',
+  [param('id').isInt().withMessage('Valid appointment ID required')],
+  appointmentsController.getById
+);
 
 module.exports = router;

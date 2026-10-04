@@ -22,7 +22,7 @@ exports.markRead = async (req,res) => {
     if (check.length === 0) {
       return res.status(404).json({ message: 'Notification not found' });
     }
-    if (check[0].user_id !== req.user.userId) {
+    if (Number(check[0].user_id) !== Number(req.user.userId)) {
       return res.status(403).json({ message: 'This notification does not belong to you' });
     }
 

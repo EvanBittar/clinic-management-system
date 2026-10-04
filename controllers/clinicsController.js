@@ -68,23 +68,27 @@ exports.getAll = async (req, res) => {
 exports.getById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { role, clinicId } = req.user;
 
-    if (req.user.role !== 'super_admin' && req.user.clinicId !== Number(id)) {
+    if (role !== 'super_admin' && Number(clinicId) !== Number(id)) {
       return res.status(403).json({ message: 'Access denied: Cannot view another clinic' });
     }
 
-    const [result] = await pool.query(`
+    const [rows] = await pool.query(
+      `
       SELECT c.id, c.name, c.is_active, c.created_at, ct.name AS clinic_type
       FROM clinics c
       LEFT JOIN clinic_types ct ON c.clinic_type_id = ct.id
       WHERE c.id = ?
-    `, [id]);
+      `,
+      [id]
+    );
 
-    if (result.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({ message: 'Clinic not found' });
     }
 
-    res.json(result);
+    res.json(rows[0]);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
@@ -97,23 +101,34 @@ exports.update = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
+
     const { id } = req.params;
     const { name, clinic_type_id } = req.body;
-    const { role, clinic_id } = req.user;
+    const { role, clinicId } = req.user;
 
-    if (role !== 'super_admin' && clinic_id !== Number(id)) {
+    if (role !== 'super_admin' && Number(clinicId) !== Number(id)) {
       return res.status(403).json({ message: 'Access denied: Cannot update another clinic' });
     }
-    let query = '';
-    let params = [];
 
-    if (role === 'super_admin') {
-      query = 'UPDATE clinics SET name = ?, clinic_type_id = ? WHERE id = ?';
-      params = [name, clinic_type_id || null, id];
-    } else {
-      query = 'UPDATE clinics SET name = ? WHERE id = ?';
-      params = [name, id];
+    const updates = [];
+    const params = [];
+
+    if (name !== undefined) {
+      updates.push('name = ?');
+      params.push(name);
     }
+
+    if (role === 'super_admin' && clinic_type_id !== undefined) {
+      updates.push('clinic_type_id = ?');
+      params.push(clinic_type_id);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ message: 'No valid fields provided for update' });
+    }
+
+    params.push(id);
+    const query = `UPDATE clinics SET ${updates.join(', ')} WHERE id = ?`;
 
     const [result] = await pool.query(query, params);
 
@@ -121,14 +136,14 @@ exports.update = async (req, res) => {
       return res.status(404).json({ message: 'Clinic not found' });
     }
 
+    const [updatedClinic] = await pool.query('SELECT id, name, clinic_type_id FROM clinics WHERE id = ?', [id]);
+
     res.json({
       message: 'Clinic updated successfully',
-      id: Number(id),
-      updated_fields: role === 'super_admin' ? { name, clinic_type_id } : { name }
+      clinic: updatedClinic[0]
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
-
   }
 };
