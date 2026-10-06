@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -17,7 +19,8 @@
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.24.4"
+    "mysql2": "^3.24.4",
+    "node-cron": "^4.6.0"
   },
   "devDependencies": {
     "jest": "^30.5.1",
