@@ -47,12 +47,13 @@ router.get(
   usersController.getAll
 );
 
-router.get(
-  '/login-logs',
+router.get('/login-logs',
   authenticateToken,
-  authorizeRoles('super_admin', 'manager', 'deputy_manager'), [
-  query('date').optional().isISO8601().withMessage('Date must be in valid format (YYYY-MM-DD)')
-],
+  authorizeRoles('super_admin', 'manager', 'deputy_manager'),
+  [
+    query('date').optional().isDate().withMessage('date must be in YYYY-MM-DD format'),
+    query('view').optional().isIn(['summary', 'detailed']).withMessage("view must be 'summary' or 'detailed'")
+  ],
   usersController.getLoginLogs
 );
 

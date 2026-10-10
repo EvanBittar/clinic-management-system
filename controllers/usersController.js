@@ -287,7 +287,6 @@ exports.getById = async (req, res) => {
   }
 };
 
-// 3. Get login logs ("Who logged in on a given day")
 exports.getLoginLogs = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -296,17 +295,10 @@ exports.getLoginLogs = async (req, res) => {
     }
 
     const { role, clinicId } = req.user;
+    const { date, view } = req.query;
 
-    // Default to today's date (YYYY-MM-DD) if no query param is passed
-    const targetDate = req.query.date || new Date().toISOString().split('T')[0];
-
-    let query = `
-      SELECT l.id, l.user_id, u.name AS user_name, u.username, u.role, l.clinic_id, l.logged_in_at
-      FROM login_logs l
-      JOIN users u ON l.user_id = u.id
-    `;
-    const params = [];
     const conditions = [];
+    const params = [];
 
     // Tenant isolation
     if (role !== 'super_admin') {
@@ -314,22 +306,48 @@ exports.getLoginLogs = async (req, res) => {
       params.push(clinicId);
     }
 
-    // Filter by target date
-    conditions.push('DATE(l.logged_in_at) = ?');
-    params.push(targetDate);
-
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
+    // Date filter: MySQL decides what "today" is, so no UTC shift
+    if (date) {
+      conditions.push('DATE(l.logged_in_at) = ?');
+      params.push(date);
+    } else {
+      conditions.push('DATE(l.logged_in_at) = CURDATE()');
     }
 
-    query += ' ORDER BY l.logged_in_at DESC';
+    const where = 'WHERE ' + conditions.join(' AND ');
 
-    const [logs] = await pool.query(query, params);
+    let sql;
+    if (view === 'summary') {
+      // One row per person: who was here, when they first/last logged in
+      sql = `
+        SELECT u.id AS user_id, u.name AS user_name, u.username, u.role,
+               MIN(l.logged_in_at) AS first_login,
+               MAX(l.logged_in_at) AS last_login,
+               COUNT(*) AS login_count
+        FROM login_logs l
+        JOIN users u ON l.user_id = u.id
+        ${where}
+        GROUP BY u.id, u.name, u.username, u.role
+        ORDER BY first_login ASC
+      `;
+    } else {
+      // Every individual login
+      sql = `
+        SELECT l.id, l.user_id, u.name AS user_name, u.username, u.role, l.clinic_id, l.logged_in_at
+        FROM login_logs l
+        JOIN users u ON l.user_id = u.id
+        ${where}
+        ORDER BY l.logged_in_at DESC
+      `;
+    }
+
+    const [rows] = await pool.query(sql, params);
 
     res.json({
-      date: targetDate,
-      count: logs.length,
-      logs
+      date: date || 'today',
+      view: view === 'summary' ? 'summary' : 'detailed',
+      count: rows.length,
+      logs: rows
     });
   } catch (error) {
     console.error(error);
