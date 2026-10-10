@@ -17,15 +17,15 @@ const patientsRoutes = require('./routes/patients');
 const appointmentsRoutes = require('./routes/appointments');
 const notificationsRoutes = require('./routes/notifications');
 
-app.use('/clinics', clinicsRoutes);
-app.use('/clinic-types', clinicTypesRoutes);
-app.use('/users', usersRoutes);
-app.use('/departments', departmentsRoutes);
-app.use('/doctors', doctorsRoutes);
-app.use('/appointment-types', appointmentTypesRoutes);
-app.use('/patients', patientsRoutes);
-app.use('/appointments', appointmentsRoutes);
-app.use('/notifications', notificationsRoutes);
-app.use('/', authRoutes);
+app.use('/api/clinics', clinicsRoutes);
+app.use('/api/clinic-types', clinicTypesRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/departments', departmentsRoutes);
+app.use('/api/doctors', doctorsRoutes);
+app.use('/api/appointment-types', appointmentTypesRoutes);
+app.use('/api/patients', patientsRoutes);
+app.use('/api/appointments', appointmentsRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/', authRoutes);
 
 module.exports = app;
