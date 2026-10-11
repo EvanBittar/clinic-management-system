@@ -1,4 +1,5 @@
 const pool = require("../config/db");
+const { emitToUser } = require('../services/realtime');
 
 exports.getMine = async (req, res) => {
   try {
@@ -33,9 +34,18 @@ exports.markRead = async (req,res) => {
     res.status(500).json({ message: 'Internal Server Error' });
   }
 }
+
 exports.createNotification = async (clinic_id, user_id, appointment_id, type, message) => {
-  await pool.query(
+  const [result] = await pool.query(
     'INSERT INTO notifications (clinic_id, user_id, appointment_id, type, message) VALUES (?, ?, ?, ?, ?)',
     [clinic_id, user_id, appointment_id, type, message]
   );
+
+  // Push it live if that user is connected. A failed push must never make the saved notification look failed.
+  try {
+    const [[row]] = await pool.query('SELECT * FROM notifications WHERE id = ?', [result.insertId]);
+    emitToUser(user_id, 'notification', row);
+  } catch (err) {
+    console.error('Live push failed (notification is saved):', err.message);
+  }
 };

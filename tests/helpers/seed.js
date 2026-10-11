@@ -107,7 +107,11 @@ async function seedWorld() {
     tokens[key] = await tokenFor(username);
   }
 
-  return { clinicA, clinicB, users, tokens, deptA, deptB, typeA, typeB, patientA, patientB, doctorProfileA, doctorProfileB };
+  return {
+    clinicTypeId: ct.insertId,
+    clinicA, clinicB, users, tokens,
+    deptA, deptB, typeA, typeB, patientA, patientB, doctorProfileA, doctorProfileB,
+  };
 }
 
 module.exports = { seedWorld, api, login, PASSWORD };
