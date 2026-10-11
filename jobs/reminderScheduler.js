@@ -9,12 +9,12 @@ async function sendReminderBatch(minutesBefore, type, label) {
      JOIN doctors d ON a.doctor_id = d.id
      WHERE a.status NOT IN ('cancelled', 'completed', 'no_show')
        AND a.scheduled_at > NOW()
-       AND a.scheduled_at <= DATE_ADD(NOW(), INTERVAL ? MINUTE)
+       AND a.scheduled_at BETWEEN DATE_ADD(NOW(), INTERVAL ? MINUTE) AND DATE_ADD(NOW(), INTERVAL ? MINUTE)
        AND NOT EXISTS (
          SELECT 1 FROM notifications n
          WHERE n.appointment_id = a.id AND n.type = ?
        )`,
-        [minutesBefore, minutesBefore + 1, type]
+        [minutesBefore - 5, minutesBefore + 1, type]
     );
 
     for (const appt of appointments) {
