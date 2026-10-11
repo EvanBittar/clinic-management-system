@@ -72,4 +72,30 @@ describe('reminder scheduler', () => {
     expect(await remindersFor(id, 'reminder_1hr')).toEqual([]);
     expect(await remindersFor(id, 'reminder_30min')).toEqual([]);
   });
+
+  test('an appointment moved after its reminder was sent gets a fresh reminder', async () => {
+    const id = await bookAppointment();
+    await moveTo(id, 60 * 60 + 30);
+    await runReminderCheck();
+    expect(await remindersFor(id, 'reminder_1hr')).toEqual(doctorAndAssistant());
+
+    await moveTo(id, 56 * 60 + 40); // rescheduled to a different time, still inside the reminder window
+    await runReminderCheck();
+    const twice = [...doctorAndAssistant(), ...doctorAndAssistant()].sort((a, b) => a - b);
+    expect(await remindersFor(id, 'reminder_1hr')).toEqual(twice);
+  });
+
+  test('catch-up: a reminder that became due a few minutes ago is still sent', async () => {
+    const id = await bookAppointment();
+    await moveTo(id, 57 * 60); // the 1-hour mark passed 3 minutes ago, as if the server had been off
+    await runReminderCheck();
+    expect(await remindersFor(id, 'reminder_1hr')).toEqual(doctorAndAssistant());
+  });
+
+  test('booked less than an hour ahead: no "1 hour" reminder', async () => {
+    const id = await bookAppointment();
+    await moveTo(id, 50 * 60);
+    await runReminderCheck();
+    expect(await remindersFor(id, 'reminder_1hr')).toEqual([]);
+  });
 });

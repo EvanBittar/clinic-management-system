@@ -10,6 +10,7 @@ function assertTestDatabase() {
 }
 
 const TABLES = [
+  'appointment_reminders',
   'appointment_status_log',
   'notifications',
   'login_logs',
