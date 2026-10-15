@@ -106,6 +106,7 @@ exports.getAll = async (req, res) => {
     let query = `
       SELECT 
         d.id, 
+        d.user_id,
         d.clinic_id,
         u.name AS doctor_name, 
         u.is_active,

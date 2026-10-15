@@ -92,6 +92,7 @@ describe('doctor profiles', () => {
     expect(res.status).toBe(200);
 
     const doctor = res.body.find((d) => d.doctor_name === 'Doctor A');
+    expect(doctor.user_id).toBe(world.users.doctorA);
     expect(doctor.department_name).toBe('Dental A');
     expect(doctor.assistant_user_id).toBe(world.users.assistantA);
     expect(res.body.some((d) => d.doctor_name === 'Doctor B')).toBe(false);
